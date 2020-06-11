@@ -120,26 +120,45 @@ namespace {
     }
 
 
-void isCall(Instruction *Inst) {
+void isCall(Instruction *Inst, std::string NestedCallName) {
 
       if(CallInst *CI = dyn_cast<CallInst>(Inst)) {
-        StringRef CallName = CI->getCalledFunction()->getName();
+        std::string CallName = CI->getCalledFunction()->getName();
         errs() << "\t\t\t Data Dependency Call " << CallName << "\n";
+
+        std::string TopFunName = Function_Names_list[Function_Names_list.size()-1];
+         errs() << "\t\t\t Data Dependency Call  - TopFunName" << TopFunName << "\n";
+
+            myfile.open (TopFunName +".gv", std::ofstream::out | std::ofstream::app);
+            myfile << CallName << "[weight = 1, style = filled]" << "\n"; 
+            myfile << NestedCallName << "[weight = 1, style = filled]" << "\n"; 
+            myfile << CallName << " -> " << NestedCallName << " ; "  << "\n";
+            myfile.close();
+
       }
 
 }
 
-void isInvoke(Instruction *Inst) {
+void isInvoke(Instruction *Inst, std::string NestedCallName) {
 
       if(InvokeInst *CI = dyn_cast<InvokeInst>(Inst)) {
-        StringRef CallName = CI->getCalledFunction()->getName();
+        std::string CallName = CI->getCalledFunction()->getName();
         errs() << "\t\t\t Data Dependency Call " << CallName << "\n";
+
+        std::string TopFunName = Function_Names_list[Function_Names_list.size()-1];
+        errs() << "\t\t\t Data Dependency Call  - TopFunName" << TopFunName << "\n";
+
+            myfile.open (TopFunName +".gv", std::ofstream::out | std::ofstream::app);
+            myfile << CallName << "[weight = 1, style = filled]" << "\n"; 
+            myfile << NestedCallName << "[weight = 1, style = filled]" << "\n"; 
+            myfile << CallName << " -> " << NestedCallName << " ; "  << "\n";
+            myfile.close();
       }
 
 }
 
 
-    void isStore (Instruction *Inst, Instruction *Alloca) {
+    void isStore (Instruction *Inst, Instruction *Alloca, std::string NestedCallName) {
 
             if(StoreInst *Store = dyn_cast<StoreInst>(&*Inst))
              if( Instruction *OP1 = dyn_cast<Instruction>(&*Store->getOperand(1)))
@@ -149,8 +168,8 @@ void isInvoke(Instruction *Inst) {
                errs() << "\t\t\t Data Dependency Stores " << *OP1 << " Source:  "  << *OP0
              << "\n";
 
-             isCall(OP0);
-             isInvoke(OP0);
+             isCall(OP0, NestedCallName);
+             isInvoke(OP0, NestedCallName);
               }
 
             }
@@ -159,7 +178,7 @@ void isInvoke(Instruction *Inst) {
     }
 
 
-    void isLoad (Instruction *Inst, Instruction *Alloca) {
+    void isLoad (Instruction *Inst, Instruction *Alloca, std::string NestedCallName) {
 
       if(LoadInst *Load = dyn_cast<LoadInst>(&*Inst))
        if( Instruction *OP0 = dyn_cast<Instruction>(&*Load->getOperand(0))){
@@ -169,20 +188,20 @@ void isInvoke(Instruction *Inst) {
          errs() << "\t\t\t Data Dependency Loads " << *Inst << " Source:  "  << *OP0
        << "\n";
 
-       isCall(OP0);
-       isInvoke(OP0);
+       isCall(OP0, NestedCallName);
+       isInvoke(OP0, NestedCallName);
         }
 
     }
 
 
-    void isAlloca (Instruction *Ins, Function *F) {
+    void isAlloca (Instruction *Ins, Function *F, std:: string NestedCallName) {
 
       if(AllocaInst *Alloca = dyn_cast<AllocaInst>(&*Ins)) 
 
         for(Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB) 
           for(BasicBlock::iterator BI = BB->begin(), BE = BB->end(); BI != BE; ++BI) {
-              isStore(&*BI, Alloca);
+              isStore(&*BI, Alloca, NestedCallName);
               //isLoad(&*BI, Alloca);
             }
             // if(StoreInst *Store = dyn_cast<StoreInst>(&*BI))
@@ -221,8 +240,9 @@ void isInvoke(Instruction *Inst) {
                  
 
                     errs() << "\t\t\t Data Dependency " << Inst->getName() << " Ins: " << *I << "\n";
-                    isAlloca(I,F);
+                    isAlloca(I,F, NestedCallName);
 
+                    // This tests only for Add - Make a list of possible opcodes (e.g. mul, etc)
                     if  (Inst->getOpcode() == Instruction::Add) {
                       errs() << " Inst  " << *Inst<< "\n";
                       Instruction *OP1 = dyn_cast<Instruction>(&*Inst->getOperand(1));
@@ -231,7 +251,7 @@ void isInvoke(Instruction *Inst) {
                       if (LoadInst *LD = dyn_cast<LoadInst>(&*OP1)) {
                         errs() << " LD of OP1  " << *LD->getOperand(0) << "\n";
                         Instruction *LD_OP0 = dyn_cast<Instruction>(&*LD->getOperand(0));
-                        isAlloca(LD_OP0,F);
+                        isAlloca(LD_OP0,F, NestedCallName);
                       }
                     }
 
