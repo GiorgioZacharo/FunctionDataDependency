@@ -170,6 +170,7 @@ void isInvoke(Instruction *Inst, std::string NestedCallName) {
 
              isCall(OP0, NestedCallName);
              isInvoke(OP0, NestedCallName);
+             isAdd(OP0, NestedCallName);
               }
 
             }
@@ -195,6 +196,145 @@ void isInvoke(Instruction *Inst, std::string NestedCallName) {
     }
 
 
+    void isAdd (Instruction *Inst, std::string NestedCallName) {
+
+      if (Inst->getOpcode() == Instruction::Add) {
+
+        for (int i=0; i<2; i++) {
+          
+          if (Instruction *OP = dyn_cast<Instruction>(&*Inst->getOperand(i))) {
+            errs() << "\t\t Data Dependency Add OP: " << i << " " << *OP << "\n";
+
+
+        // Instruction *OP0 = dyn_cast<Instruction>(&*Inst->getOperand(0));
+        // Instruction *OP1= dyn_cast<Instruction>(&*Inst->getOperand(1));
+        // errs() << "\t\t Data Dependency Add " << *OP0 << "  "  << *OP1 << "\n";
+    
+         if (LoadInst *LD = dyn_cast<LoadInst>(&*OP)){
+          Instruction *LD_OP0 = dyn_cast<Instruction>(&*LD->getOperand(0));
+          isStoredFromAdd(LD_OP0, NestedCallName);
+        } 
+      }
+      }
+
+    }
+  }
+
+  void isMul (Instruction *Inst, std::string NestedCallName) {
+
+      if (Inst->getOpcode() == Instruction::Mul) {
+
+        for (int i=0; i<2; i++) {
+
+          if (Instruction *OP = dyn_cast<Instruction>(&*Inst->getOperand(i))) {
+            errs() << "\t\t Data Dependency Mul OP: " << i << " " << *OP << "\n";
+
+
+          // Instruction *OP0 = dyn_cast<Instruction>(&*Inst->getOperand(0));
+          // Instruction *OP1= dyn_cast<Instruction>(&*Inst->getOperand(1));
+          // errs() << "\t\t Data Dependency Add " << *OP0 << "  "  << *OP1 << "\n";
+      
+           if (LoadInst *LD = dyn_cast<LoadInst>(&*OP)){
+            Instruction *LD_OP0 = dyn_cast<Instruction>(&*LD->getOperand(0));
+            isStoredFromMul(LD_OP0, NestedCallName);
+          } 
+        }
+      }
+
+    }
+  }
+
+    void isStoredFromMul (Instruction *Inst, std::string NestedCallName) { 
+
+      Function *TopFun = Function_list[Function_list.size()-1];
+
+      for(Function::iterator BB = TopFun->begin(), E = TopFun->end(); BB != E; ++BB)
+        for(BasicBlock::iterator BI = BB->begin(), BE = BB->end(); BI != BE; ++BI)
+          if (StoreInst *Store = dyn_cast<StoreInst>(&*BI)) {
+            if ( dyn_cast<Instruction>(&*Store->getOperand(0)) &&
+             dyn_cast<Instruction>(&*Store->getOperand(1))) {
+
+            Instruction *OP0 = dyn_cast<Instruction>(&*Store->getOperand(0));
+            Instruction *OP1 = dyn_cast<Instruction>(&*Store->getOperand(1));
+
+              if (OP1 == Inst){
+                errs() << "\t\t Data Dependency Inst Stored From Mul " << *OP1 << " Source:  " 
+               << " "  << *Store << "\n";
+                isCall(OP0, NestedCallName);
+                isInvoke(OP0, NestedCallName);
+                //isMul(OP0, NestedCallName);
+              }
+            }
+          }
+
+    } 
+
+  void isStoredFromAdd (Instruction *Inst, std::string NestedCallName) { 
+
+      Function *TopFun = Function_list[Function_list.size()-1];
+
+      for(Function::iterator BB = TopFun->begin(), E = TopFun->end(); BB != E; ++BB)
+        for(BasicBlock::iterator BI = BB->begin(), BE = BB->end(); BI != BE; ++BI)
+          if (StoreInst *Store = dyn_cast<StoreInst>(&*BI)) {
+            if ( dyn_cast<Instruction>(&*Store->getOperand(0)) &&
+             dyn_cast<Instruction>(&*Store->getOperand(1))) {
+
+            Instruction *OP0 = dyn_cast<Instruction>(&*Store->getOperand(0));
+            Instruction *OP1 = dyn_cast<Instruction>(&*Store->getOperand(1));
+
+              if (OP1 == Inst){
+                errs() << "\t\t Data Dependency Inst Stored From Add " << *OP1 << " Source:  " 
+               << " "  << *Store << "\n";
+                isCall(OP0, NestedCallName);
+                isInvoke(OP0, NestedCallName);
+                isMul(OP0, NestedCallName);
+              }
+            }
+          }
+
+    }
+
+    void isStored (Instruction *Inst, std::string NestedCallName) { 
+
+      Function *TopFun = Function_list[Function_list.size()-1];
+
+      for(Function::iterator BB = TopFun->begin(), E = TopFun->end(); BB != E; ++BB)
+        for(BasicBlock::iterator BI = BB->begin(), BE = BB->end(); BI != BE; ++BI)
+          if (StoreInst *Store = dyn_cast<StoreInst>(&*BI)) {
+            if ( dyn_cast<Instruction>(&*Store->getOperand(0)) &&
+             dyn_cast<Instruction>(&*Store->getOperand(1))) {
+            Instruction *OP0 = dyn_cast<Instruction>(&*Store->getOperand(0));
+            Instruction *OP1 = dyn_cast<Instruction>(&*Store->getOperand(1));
+   
+          //   Instruction *OP0 = dyn_cast<Instruction>(&*Store->getOperand(0));
+          //   Instruction *OP1 = dyn_cast<Instruction>(&*Store->getOperand(1));
+
+              if (OP1 == Inst){
+                errs() << "\t\t Data Dependency GEP Stored " << *OP1 << " Source:  "  << *Store << "\n";
+                isAdd(OP0, NestedCallName);
+              }
+          }
+        }
+
+    }
+
+    void isGep(Instruction *Inst, Instruction *Alloca, std::string NestedCallName) {
+
+      if(GetElementPtrInst *GetElementPtr = dyn_cast<GetElementPtrInst>(&*Inst))
+       if( Instruction *OP0 = dyn_cast<Instruction>(&*GetElementPtr->getOperand(0))){
+          if (OP0 == Alloca){
+
+        //&&Instruction *OP1 = dyn_cast<Instruction>(&*Store->getOperand(1)))
+          errs() << "\t\t\t Data Dependency GetElementPtrs " << *Inst << " Source:  "  << *OP0
+          << "\n";
+
+
+          isStored(Inst, NestedCallName);
+        }
+      }
+    }
+
+
     void isAlloca (Instruction *Ins, Function *F, std:: string NestedCallName) {
 
       if(AllocaInst *Alloca = dyn_cast<AllocaInst>(&*Ins)) 
@@ -202,6 +342,7 @@ void isInvoke(Instruction *Inst, std::string NestedCallName) {
         for(Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB) 
           for(BasicBlock::iterator BI = BB->begin(), BE = BB->end(); BI != BE; ++BI) {
               isStore(&*BI, Alloca, NestedCallName);
+              isGep(&*BI, Alloca, NestedCallName);
               //isLoad(&*BI, Alloca);
             }
             // if(StoreInst *Store = dyn_cast<StoreInst>(&*BI))
